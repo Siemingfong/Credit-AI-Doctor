@@ -1,10 +1,43 @@
 from bs4 import BeautifulSoup
-from tqdm import trange
+from tqdm import trange, tqdm
 import pandas as pd
 import requests
+import time
+import os
 
 
-def main(params):
+def get_company_en_name(params):
+    company_ids = params['final_df']['證券代號']
+    for i in trange(len(company_ids)):
+        if params['final_df']['en_name'].loc[i] == 0:
+            form_data = {
+                'inpuType': 'pro_co_id',
+                'step': '0a',
+                'co_id': '%s' % company_ids[i],
+                'caption_id': '000001',
+                'keyword': '',
+            }
+            url = 'https://emops.twse.com.tw/server-java/t58query'
+            try:
+                response = requests.post(url, data = form_data)
+                content = response.content
+                soup = BeautifulSoup(content, 'html.parser')
+
+                title = soup.find_all('div', {'id': 'tabtitle'})
+                if title:
+                    title = title[0].findChildren('div', recursive=False)[0].text.split('(')[0]
+                    params['final_df']['en_name'].loc[i] = title
+                    print(params['final_df']['en_name'].loc[i])
+                else:
+                    params['final_df']['en_name'].loc[i] = 0
+                params['final_df'].to_csv(params['csv_name'], index=False, encoding='utf-8-sig')
+                time.sleep(1)
+            except:
+                print('[Err] Error happens in cid: %s' % company_ids[i])
+                time.sleep(5)
+
+
+def crawl_mops_indicators(params):
     final_df = pd.DataFrame(columns = params['columns'])
     for page in trange(100):
         form_data = params['form_data'].copy()
@@ -35,10 +68,25 @@ def main(params):
                         cur_data.append(tds[i].text)
             df = pd.DataFrame(final_data, columns = params['columns'])
             final_df = pd.concat([final_df, df])
-            # df.to_csv('industry_%s.csv' % form_data['code'], index=False, encoding='utf-8-sig')
         else:
             continue
-    final_df.to_csv('industry_all.csv', index=False, encoding='utf-8-sig')
+    final_df.to_csv(params['csv_name'], index=False, encoding='utf-8-sig')
+    params['final_df'] = final_df
+
+
+def main(params):
+    files = os.listdir('./')
+    if params['csv_name'] in files:
+        params['final_df'] = pd.read_csv('./industry_all.csv')
+        if 'en_name' not in params['final_df'].columns:
+            params['final_df']['en_name'] = 0
+            get_company_en_name(params)
+        else:
+            get_company_en_name(params)
+    else:
+        crawl_mops_indicators(params)
+        get_company_en_name(params)
+
 
 if __name__ == '__main__':
     PARAMS = {}
@@ -54,5 +102,6 @@ if __name__ == '__main__':
                          '指標4_1_1', '指標4_2_1', '指標4_3_1', '指標5', '指標6', '指標7', 
                          '指標8', '指標9', '指標2_1_2', '指標2_2_2', '指標2_3_2',
                          '指標4_1_2', '指標4_2_2', '指標4_3_2']
-    
+    PARAMS['csv_name'] = 'industry_all.csv'
+    PARAMS['final_df'] = None
     main(PARAMS)
