@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from tqdm import trange, tqdm
 import pandas as pd
+import numpy as np
 import requests
 import time
 import os
@@ -8,8 +9,16 @@ import os
 
 def get_company_en_name(params):
     company_ids = params['final_df']['證券代號']
+    
+    # check whether collect all data or not
+    last_num = np.sum(params['final_df']['en_name'] == '0')
+    if last_num == 0:
+        print('[Info] successful collect 100% !')
+    else:
+        print('[Info] still need %s to be collected...' % last_num)
+        
     for i in trange(len(company_ids)):
-        if params['final_df']['en_name'].loc[i] == 0:
+        if params['final_df']['en_name'].loc[i] == '0':
             form_data = {
                 'inpuType': 'pro_co_id',
                 'step': '0a',
@@ -35,6 +44,8 @@ def get_company_en_name(params):
             except:
                 print('[Err] Error happens in cid: %s' % company_ids[i])
                 time.sleep(5)
+        else:
+            continue
 
 
 def crawl_mops_indicators(params):
